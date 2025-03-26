@@ -1,4 +1,4 @@
-# NexDL: A Custom Deep Learning Library
+# NexDL: Numpy Extensible Deep Learning Library
 
 NexDL is a lightweight numpy-based deep learning framework inspired by PyTorch, designed for flexibility and extensibility. It provides an intuitive autograd system, a variety of neural network layers, optimizers, and loss functions.
 
