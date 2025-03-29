@@ -373,7 +373,7 @@ class Tensor:
 
     @property
     def T(self):
-        return Tensor(self.data.transpose())
+        return Tensor(self.data.transpose(), requires_grad=self.requires_grad)
 
     def detach(self):
         return Tensor(self.data, requires_grad=False)
@@ -532,6 +532,20 @@ class Tensor:
 
     def squeeze(self,axis):
         return sequeeze(self,axis)
+
+    def view(self, *new_shape):
+        """ 
+        Reshape the tensor. 
+        Supports both gradient tracking and non-gradient tracking.
+        """
+        new_shape = tuple(new_shape)  # Ensure the new shape is a tuple
+        
+        if self.requires_grad:
+            # Call the version that supports gradient tracking via functional class
+            return ViewFunction.apply(self, new_shape)
+        else:
+            # Just reshape the data without tracking gradients
+            return self.__class__(self.data.reshape(new_shape))
 
     def __lt__(self, other):
         """Returns a boolean tensor indicating where self < other."""
@@ -1416,3 +1430,24 @@ class LinspaceFunction(Function):
     def backward(ctx, grad_output):
         # No gradient required for linspace, return None
         return None, None, None
+
+class ViewFunction(Function):
+    @staticmethod
+    def forward(ctx, input_tensor, new_shape):
+        # Save the original shape for backward pass
+        ctx.save_for_backward(input_tensor)
+        ctx.new_shape = new_shape
+        
+        # Perform the reshaping operation
+        return input_tensor.data.reshape(new_shape)
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        # Retrieve the original tensor and the new shape
+        input_tensor, = ctx.saved_tensors
+        new_shape = ctx.new_shape
+        
+        # Reshape the gradient output to match the original shape of the input tensor
+        grad_input = grad_output.reshape(input_tensor.data.shape)
+        
+        return grad_input, None  # No gradient for the new shape (it's just a metadata change)
