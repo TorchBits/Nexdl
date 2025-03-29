@@ -54,9 +54,6 @@ class Conv2d(Module):
         
 
     def forward(self, x: nx.Tensor) -> nx.Tensor:
-        """
-        Forward pass using the Conv2DFunction.
-        """
         return Conv2DFunction.apply(x, self.weights, self.bias, self.stride, self.padding, self.kernel_size)
 
     def extra_repr(self) -> str:
