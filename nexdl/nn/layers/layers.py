@@ -46,10 +46,10 @@ class MSELoss(Module):
 
 class CrossEntropyLoss(Module):
     def forward(self, input, target):
-        exp = nx.backend.exp(input.data - nx.backend.max(input.data, axis=-1, keepdims=True))
+        exp = nx.exp(input - nx.max(input, axis=-1, keepdims=True))
         softmax = exp / nx.sum(exp, axis=-1, keepdims=True)
         log_softmax = nx.log(softmax)
-        return -nx.sum(target.data * log_softmax) / input.data.shape[0]
+        return -nx.sum(target * log_softmax.T) / input.shape[0]
 
 # class BCELoss(Module):
 #     def forward(self, input, target):
