@@ -5,6 +5,8 @@ from nexdl.nn.parameter import Parameter
 class Linear(Module):
     def __init__(self, in_features, out_features):
         super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
         self.weight = Parameter(nx.tensor(nx.backend.random.randn(in_features, out_features) * 0.01, requires_grad=True))
         # self.bias = Parameter(nx.tensor(nx.backend.zeros(out_features), requires_grad=True))
         self.bias = Parameter(nx.tensor(nx.backend.zeros(out_features), requires_grad=True))
@@ -12,8 +14,12 @@ class Linear(Module):
         self.register_parameter('weight', self.weight)
         self.register_parameter('bias', self.bias)
 
+
     def forward(self, x):
         return x.matmul(self.weight) + self.bias
+
+    def extra_repr(self) -> str:
+        return f'in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}'
 
 class ReLU(Module):
     def forward(self, x):
@@ -45,11 +51,29 @@ class CrossEntropyLoss(Module):
         log_softmax = nx.log(softmax)
         return -nx.sum(target.data * log_softmax) / input.data.shape[0]
 
+# class BCELoss(Module):
+#     def forward(self, input, target):
+#         """Binary Cross-Entropy Loss: -[y log(p) + (1-y) log(1-p)]"""
+#         input = nx.clip(input, 1e-7, 1 - 1e-7)  # Prevent log(0) instability
+#         return -nx.mean(target * nx.log(input) + (1 - target) * nx.log(1 - input))
+
 class BCELoss(Module):
     def forward(self, input, target):
-        """Binary Cross-Entropy Loss: -[y log(p) + (1-y) log(1-p)]"""
-        input = nx.backend.clip(input, 1e-7, 1 - 1e-7)  # Prevent log(0) instability
-        return -nx.mean(target * nx.log(input) + (1 - target) * nx.log(1 - input))
+        # Clip input to prevent log(0) and ensure numerical stability
+        input = nx.clip(input, 1e-7, 1 - 1e-7)
+        loss = -nx.mean(target * nx.log(input) + (1 - target) * nx.log(1 - input))
+        return loss
+
+
+# class BCELoss(Module):
+#     def forward(self, input, target):
+#         # Clip input to prevent log(0) and ensure numerical stability
+#         input = nx.where(input < 1e-7, nx.tensor(1e-7, dtype=input.dtype), input)
+#         input = nx.where(input > 1 - 1e-7, nx.tensor(1 - 1e-7, dtype=input.dtype), input)
+
+#         # Compute BCE Loss
+#         loss = -nx.mean(target * nx.log(input) + (1 - target) * nx.log(1 - input))
+#         return loss
 
 class MAELoss(Module):
     def forward(self, input, target):

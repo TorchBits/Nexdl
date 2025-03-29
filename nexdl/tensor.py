@@ -1,6 +1,6 @@
 from .backend import backend
 from typing import List, Optional, Tuple
-
+from contextlib import contextmanager
 
 #_____________________________The AutoGrad function class_________________________________
 
@@ -48,6 +48,28 @@ class Function:
 
 
 #_____________________________________FUnction implementations___________________________________________
+
+
+# Global flag to track whether gradients are enabled
+grad_enabled = True
+
+def is_grad_enabled():
+    return grad_enabled
+
+def set_grad_enabled(enabled):
+    global grad_enabled
+    grad_enabled = enabled
+
+@contextmanager
+def no_grad():
+    global grad_enabled
+    previous_state = grad_enabled  # Store the previous state
+    set_grad_enabled(False)  # Disable gradients tracking
+    try:
+        yield  # Execute code inside the 'with' block
+    finally:
+        set_grad_enabled(previous_state)
+
 
 def sum(tensor, axis=None, keepdims=False):
     """Module-level sum function that works with Tensors"""
@@ -255,11 +277,15 @@ def abs(tensor):
     return AbsFunction.apply(tensor)
 
 def linspace(start,stop,sequence_num):
-    return LinspaceFunction(start,stop,sequence_num)
+    return LinspaceFunction.apply(start,stop,sequence_num)
 
 
-def no_grad():
-    return NoGradFunction.apply()
+
+def where(condition, x, y):
+    return WhereFunction.apply(condition, x, y)
+def logical_not(tensors):
+    return LogicalNotFunction.apply(tensors)
+
  #____________________________________________The tensor class _______________________________________________________
 class Tensor:
     def __init__(self, data, requires_grad=False, backend=backend, dtype=backend.float32,device="cpu"):
@@ -366,25 +392,36 @@ class Tensor:
         return add(self,other)
 
     def __radd__(self, other):
-        return self.__add__(other)
+        if isinstance(other, (int, float)):  # Check if the other operand is a scalar
+            return AddFunction.apply(Tensor(other), self)  # Reverse subtraction: scalar - tensor
+        return NotImplemented
 
     def __mul__(self, other):
         return mul(self,other)
 
     def __rmul__(self, other):
-        return self.__mul__(other)
+        if isinstance(other, (int, float)):  # Check if the other operand is a scalar
+            return MulFunction.apply(Tensor(other), self)  # Reverse subtraction: scalar - tensor
+        return NotImplemented
 
     def __sub__(self, other):
         return sub(self,other)
 
+    # def __rsub__(self, other):
+    #     return self.__sub__(Tensor(other))
     def __rsub__(self, other):
-        return self.__sub__(other)
+        if isinstance(other, (int, float)):  # Check if the other operand is a scalar
+            return SubFunction.apply(Tensor(other), self)  # Reverse subtraction: scalar - tensor
+        return NotImplemented
+
 
     def __truediv__(self,other):
         return div(self, other)
 
     def __rtruediv__(self,other):
-        return self.__truediv__(other)
+        if isinstance(other, (int, float)):  # Check if the other operand is a scalar
+            return DivFunction.apply(Tensor(other), self)  # Reverse subtraction: scalar - tensor
+        return NotImplemented
 
     def __pow__(self, other):
         return pow(self,other)
@@ -496,6 +533,14 @@ class Tensor:
     def squeeze(self,axis):
         return sequeeze(self,axis)
 
+    def __lt__(self, other):
+        """Returns a boolean tensor indicating where self < other."""
+        return Tensor(self.data < other)  # Uses backend comparison
+
+    def __gt__(self, other):
+        """Returns a boolean tensor indicating where self > other."""
+        return Tensor(self.data > other)
+
     def to(self, device):
         if self.device == device:
             return self  # Avoid redundant conversions
@@ -552,21 +597,6 @@ class ReshapeFunction(Function):
         return grad, None
 
 
-# class ReshapeFunction(Function):
-#     @staticmethod
-#     def forward(ctx, tensor, shape):
-#         # Store original shape as an attribute, not dictionary item
-#         ctx.original_shape = tensor.shape
-#         ctx.new_shape = shape
-        
-#         # Perform reshape using backend
-#         reshaped = tensor.backend.reshape(tensor.data, shape)
-#         return Tensor(reshaped, requires_grad=tensor.requires_grad)
-
-#     @staticmethod
-#     def backward(ctx, grad_output):
-#         # Restore original shape
-#         return Tensor(ctx.backend.reshape(grad_output.data, ctx.original_shape), None)
 
 class SqueezeFunction(Function):
     @staticmethod
@@ -989,28 +1019,6 @@ class CatFunction(Function):
 
         return tuple(grads)
 
-# class CatFunction(Function):
-#     @staticmethod
-#     def forward(ctx, *tensors, axis=0):
-#         if len(tensors) == 1 and isinstance(tensors[0], list):
-#             tensors = tuple(tensors[0])
-#         ctx.save_for_backward(tensors, axis)
-#         return backend.concatenate([t.data for t in tensors], axis=axis)
-
-#     @staticmethod
-#     def backward(ctx, grad_output):
-#         tensors, axis = ctx.saved_tensors
-#         grads = []
-#         start = 0
-#         for t in tensors:
-#             end = start + t.data.shape[axis]
-#             slice_obj = [slice(None)] * grad_output.ndim
-#             slice_obj[axis] = slice(start, end)
-#             grads.append(grad_output[tuple(slice_obj)])
-#             start = end
-#         return tuple(grads)
-
-
 
 class MaxFunction(Function):
     @staticmethod
@@ -1128,25 +1136,6 @@ class OnesLikeFunction(Function):
     def backward(ctx, grad_output):
         return None
 
-
-# class RandFunction(Function):
-#     @staticmethod
-#     def forward(ctx, *args, **kwargs):
-#         return backend.random.rand(*args, **kwargs)
-
-#     @staticmethod
-#     def backward(ctx, grad_output):
-#         return None
-
-
-# class RandnFunction(Function):
-#     @staticmethod
-#     def forward(ctx, *args, **kwargs):
-#         return backend.random.randn(*args, **kwargs)
-
-#     @staticmethod
-#     def backward(ctx, grad_output):
-#         return None
 
 class RandFunction(Function):
     @staticmethod
@@ -1376,3 +1365,54 @@ class AvgPool2DFunction(Function):
 
         return Tensor(grad_input)  # Return gradient w.r.t. input
 
+class WhereFunction(Function):
+    @staticmethod
+    def forward(ctx, condition, x, y):
+        ctx.save_for_backward(condition, x, y)
+        return backend.where(condition, x.data, y.data)  # Uses backend operation
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        condition, x, y = ctx.saved_tensors
+        grad_x = grad_output * condition  # Pass gradient only where condition is True
+        grad_y = grad_output * backend.logical_not(condition)  # Pass gradient only where condition is False
+        return None, grad_x, grad_y  # No gradient for condition
+
+class LogicalNotFunction(Function):
+    @staticmethod
+    def forward(ctx, input_tensor):
+        # Save the input tensor for use in backward
+        ctx.save_for_backward(input_tensor)
+        # Apply logical not and return the result
+        return backend.logical_not(input_tensor.data)
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        # Retrieve the saved input tensor
+        input_tensor, = ctx.saved_tensors
+        # Since logical_not is non-differentiable, the gradient with respect to input is 0
+        grad_input = backend.zeros_like(input_tensor.data)  # No gradient for logical negation
+        return grad_input  # Return zero gradient for input
+
+class NoGradFunction(Function):
+    @staticmethod
+    def forward(ctx, input):
+        # Disable gradient tracking for this operation by saving the context
+        ctx.save_for_backward(input)
+        return input  # Return the input as is without tracking gradients
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        # No gradient tracking, so return None
+        return None
+
+class LinspaceFunction(Function):
+    @staticmethod
+    def forward(ctx, start, stop, sequence_num):
+        # Create a tensor of `sequence_num` equally spaced points from `start` to `stop`
+        return backend.linspace(start, stop, sequence_num)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        # No gradient required for linspace, return None
+        return None, None, None

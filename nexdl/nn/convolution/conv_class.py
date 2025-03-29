@@ -46,15 +46,20 @@ class Conv2d(Module):
         self.padding = (padding, padding) if isinstance(padding, int) else padding
 
         # Initialize weights and biases as Tensors with requires_grad=True
-        self.weights = self.register_parameter("weight",
-            Parameter(nx.randn(out_channels, in_channels, *self.kernel_size).astype(np.float32), requires_grad=True)
-        )
-        self.bias = self.register_parameter("bias",
-            Parameter(nx.zeros((out_channels,), dtype=np.float32), requires_grad=True)
-        )
+        self.weights = Parameter(nx.randn(out_channels, in_channels, *self.kernel_size).astype(nx.backend.float32), requires_grad=True)
+    
+        self.bias = Parameter(nx.zeros((out_channels,), dtype=nx.backend.float32), requires_grad=True)
+        self.register_parameter("weights",self.weights)
+        self.register_parameter("bias",self.bias)
+        
 
     def forward(self, x: nx.Tensor) -> nx.Tensor:
         """
         Forward pass using the Conv2DFunction.
         """
         return Conv2DFunction.apply(x, self.weights, self.bias, self.stride, self.padding, self.kernel_size)
+
+    def extra_repr(self) -> str:
+        return (f'in_channels={self.in_channels}, out_channels={self.out_channels}, '
+                f'kernel_size={self.kernel_size}, stride={self.stride}, padding={self.padding}')
+

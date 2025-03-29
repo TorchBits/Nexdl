@@ -1,183 +1,3 @@
-# import numpy as np
-# import os
-# from typing import Dict, Iterator, Tuple, Optional
-# from nexdl import tensor as nx
-
-# class Module:
-#     def __init__(self):
-#         """Ensure all internal attributes exist before __setattr__ can be triggered."""
-#         if not hasattr(self, "_modules"):
-#             super().__setattr__('_modules', {})
-#         if not hasattr(self, "_parameters"):
-#             super().__setattr__('_parameters', {})
-#         if not hasattr(self, "_buffers"):
-#             super().__setattr__('_buffers', {})
-
-#         self.training = True  # Default to training mode
-
-#     def __call__(self, *args, **kwargs):
-#         return self.forward(*args, **kwargs)
-
-#     def forward(self, *args, **kwargs):
-#         raise NotImplementedError("Subclasses must implement the forward method.")
-
-#     def parameters(self, recurse: bool = True) -> Iterator[nx.Tensor]:
-#         """Returns an iterator over module parameters."""
-#         for _, param in self.named_parameters(recurse=recurse):
-#             yield param
-
-#     def named_parameters(self, prefix: str = '', recurse: bool = True) -> Iterator[Tuple[str, nx.Tensor]]:
-#         """Returns an iterator over module parameters with names."""
-#         for name, param in self._parameters.items():
-#             yield prefix + name, param
-#         if recurse:
-#             for module_name, module in self._modules.items():
-#                 yield from module.named_parameters(prefix=prefix + module_name + '.', recurse=recurse)
-
-#     def num_parameters(self, verbose: bool = False) -> int:
-#         """Counts total number of parameters in the model."""
-#         total_params = sum(param.data.size for _, param in self.named_parameters())
-        
-#         if verbose:
-#             for name, param in self.named_parameters():
-#                 print(f"{name}: {param.data.size} parameters")
-#             print(f"Total parameters: {total_params}")
-
-#         return total_params
-
-#     def buffers(self, recurse: bool = True) -> Iterator[np.ndarray]:
-#         """Returns an iterator over module buffers."""
-#         for _, buffer in self.named_buffers(recurse=recurse):
-#             yield buffer
-
-#     def named_buffers(self, prefix: str = '', recurse: bool = True) -> Iterator[Tuple[str, np.ndarray]]:
-#         """Returns an iterator over module buffers with names."""
-#         for name, buffer in self._buffers.items():
-#             yield prefix + name, buffer
-#         if recurse:
-#             for module_name, module in self._modules.items():
-#                 yield from module.named_buffers(prefix=prefix + module_name + '.', recurse=recurse)
-
-#     def children(self) -> Iterator['Module']:
-#         """Returns an iterator over immediate child modules."""
-#         return iter(self._modules.values())
-
-#     def all_modules(self) -> Iterator['Module']:
-#         """Returns an iterator over all modules in the network."""
-#         yield self
-#         for module in self._modules.values():
-#             yield from module.all_modules()
-
-#     def add_module(self, name: str, module: Optional['Module']) -> None:
-#         """Adds a child module to the current module."""
-#         if module is None:
-#             self._modules.pop(name, None)
-#         else:
-#             self._modules[name] = module
-
-#     def register_parameter(self, name, param):
-#         """Registers a parameter in the module."""
-#         self._parameters[name] = param  # Store parameter properly
-#         return param  # Return the parameter
-
-#     def register_buffer(self, name: str, tensor: Optional[np.ndarray]) -> None:
-#         """Adds a buffer to the module."""
-#         if tensor is None:
-#             self._buffers.pop(name, None)
-#         else:
-#             self._buffers[name] = tensor
-
-#     def zero_grad(self) -> None:
-#         """Sets gradients of all parameters to zero."""
-#         for param in self.parameters():
-#             param.zero_grad()
-
-#     def state_dict(self) -> Dict[str, np.ndarray]:
-#         """Returns a dictionary containing the state of the module (parameters and buffers)."""
-#         state_dict = {}
-#         for name, param in self.named_parameters():
-#             state_dict[name] = param.data
-#         for name, buffer in self.named_buffers():
-#             state_dict[name] = buffer
-#         return state_dict
-
-#     def load_state_dict(self, state_dict: Dict[str, np.ndarray]) -> None:
-#         """Loads the state of the module from a dictionary."""
-#         for name, param in self.named_parameters():
-#             if name in state_dict:
-#                 param.data = state_dict[name]
-#         for name, buffer in self.named_buffers():
-#             if name in state_dict:
-#                 self._buffers[name] = state_dict[name]
-
-#     def save(self, path: str) -> None:
-#         """Saves the module's state dictionary to a file."""
-#         os.makedirs(os.path.dirname(path), exist_ok=True)
-#         np.savez(path, **self.state_dict())
-
-#     def load(self, path: str) -> None:
-#         """Loads the module's state dictionary from a file."""
-#         state_dict = np.load(path, allow_pickle=True)
-#         self.load_state_dict(state_dict)
-
-#     def train(self, mode: bool = True) -> None:
-#         """Sets the module in training mode."""
-#         self.training = mode
-#         for module in self.children():
-#             module.train(mode)
-
-#     def eval(self) -> None:
-#         """Sets the module in evaluation mode."""
-#         self.train(False)
-
-#     def __setattr__(self, name: str, value: object) -> None:
-#         """Overrides attribute assignment to handle parameters and submodules."""
-#         if hasattr(self, '_parameters') and isinstance(value, nx.Tensor):
-#             self.register_parameter(name, value)
-#         elif hasattr(self, '_modules') and isinstance(value, Module):
-#             self.add_module(name, value)
-#         elif hasattr(self, '_buffers') and isinstance(value, np.ndarray):
-#             self.register_buffer(name, value)
-#         else:
-#             super().__setattr__(name, value)
-
-#     def __getattr__(self, name: str) -> object:
-#         """Overrides attribute access to handle parameters and submodules."""
-#         if '_parameters' in self.__dict__ and name in self._parameters:
-#             return self._parameters[name]
-#         if '_buffers' in self.__dict__ and name in self._buffers:
-#             return self._buffers[name]
-#         if '_modules' in self.__dict__ and name in self._modules:
-#             return self._modules[name]
-#         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-
-# class ModuleList(Module):
-#     """A simple implementation of PyTorch's nn.ModuleList in NumPy."""
-#     def __init__(self, modules=None):
-#         super().__init__()
-#         if modules:
-#             for i, module in enumerate(modules):
-#                 self.add_module(str(i), module)
-
-#     def append(self, module):
-#         """Add a module to the list."""
-#         self.add_module(str(len(self._modules)), module)
-
-#     def __getitem__(self, index):
-#         """Retrieve a module by index."""
-#         return list(self._modules.values())[index]
-
-#     def __len__(self):
-#         """Get the number of modules in the list."""
-#         return len(self._modules)
-
-#     def parameters(self):
-#         """Get all parameters from the modules."""
-#         params = []
-#         for module in self._modules.values():
-#             params.extend(module.parameters())
-#         return params
-
 from typing import (Dict, Iterator, Tuple, Optional, List, Union, Any, 
                     TypeVar, Generic, overload, Set, Callable)
 import numpy as np
@@ -197,7 +17,7 @@ class DeviceType(Enum):
     # GPU = auto()  # Would be added with CUDA support
 
 class Module(ABC):
-    def __init__(self) -> None:
+    def __init__(self):
         self._modules: Dict[str, 'Module'] = {}
         self._parameters: Dict[str, nx.Tensor] = {}
         self._buffers: Dict[str, np.ndarray] = {}
@@ -402,15 +222,41 @@ class Module(ABC):
         return self
 
     def extra_repr(self) -> str:
+        """Override this method to add extra information about your module"""
         return ''
-
+    
     def __repr__(self) -> str:
+        # Main representation
         main_str = f'{self.__class__.__name__}('
+        
+        # Add extra representation if available
         extra_str = self.extra_repr()
         if extra_str:
             main_str += f'\n  {extra_str.replace("\n", "\n  ")}\n'
+        
+        # Handle child modules
+        child_lines = []
+        for name, module in self._modules.items():
+            mod_str = repr(module)
+            mod_str = self._addindent(mod_str, 2)
+            child_lines.append(f'({name}): {mod_str}')
+        
+        if child_lines:
+            main_str += '\n' + '\n'.join(child_lines) + '\n'
+        
         main_str += ')'
         return main_str
+    
+    def _addindent(self, s: str, num_spaces: int) -> str:
+        """Helper function to indent strings for pretty printing"""
+        s = s.split('\n')
+        if len(s) == 1:
+            return s[0]
+        first = s.pop(0)
+        s = [(num_spaces * ' ') + line for line in s]
+        s = '\n'.join(s)
+        s = first + '\n' + s
+        return s
 
 class ModuleList(Module):
     def __init__(self, modules: Optional[List[Module]] = None) -> None:

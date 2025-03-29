@@ -10,6 +10,7 @@ class SGD:
         for param in self.parameters:
             if param.requires_grad and param.grad is not None:
                 param.data = param.data - self.lr * param.grad  # Ensures shape safety
+            else: raise Exception 
 
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
@@ -37,6 +38,17 @@ class Adam:
                 m_hat = self.m[i] / (1 - self.beta1 ** self.t)
                 v_hat = self.v[i] / (1 - self.beta2 ** self.t)
                 param.data -= self.lr * m_hat / (nx.sqrt(v_hat) + self.eps)
+
+    def zero_grad(self):
+        """Clears the gradients of all optimized parameters, using fill_na to handle None."""
+        for param in self.parameters:
+            if param.requires_grad:
+                if param.grad is None:
+                    # Handle the case where grad is None by using fill_na
+                    param.grad = nx.fill_na(param.grad, nx.zeros_like(param.data))
+                else:
+                    # Ensure the gradient is set to zero
+                    param.grad.fill(0)
 
 
 class AdamW(Adam):
